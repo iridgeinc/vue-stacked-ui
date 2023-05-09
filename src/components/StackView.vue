@@ -11,14 +11,16 @@
  const drawerOpened: boolean[] = reactive([]);
  const drawerWidth: number[] = reactive([]);
  const baseWidth = 95;
- const bodyOverflow = ref("auto");
- 
+
  watch(stack.stack, async (newStack) => {
    const count = newStack.filter((x) => x !== undefined).length;
    
    // hide scroll bar on "body" element.
-   bodyOverflow.value = count == 0 ? "auto" : "hidden";
-   document.body.className = bodyOverflow.value;
+   if (count == 0) {
+     document.body.style.overflow = "auto"
+   } else {
+     document.body.style.overflow = "hidden"
+   }
    
    for (let i = 0; i < Math.max(newStack.length, currentStack.length); i++) {
      
@@ -70,15 +72,6 @@
     </div>
   </template>
 </template>
-
-<style>
- body.auto{
-   overflow: auto;
- }
- body.hidden{
-   overflow: hidden;
- }
-</style>
 
 <style scoped lang="sass">
  .drawer {
