@@ -59,12 +59,17 @@
   <template v-for="(page, i) in currentStack" :key="i">
     <div class="background" :class="{ backgroundOpened: drawerOpened[i] }" @:click="close" ><div></div></div>
     <div class="drawer" :class="{ drawerOpened: drawerOpened[i] }" :style="{ width: drawerWidth[i] + '%' }">
-      <component
-        v-if="page != undefined"
-        :is="page.component"
-        :current-stack="page"
-        v-bind="page.params">
-      </component>
+      <Suspense>
+        <component
+          v-if="page != undefined"
+          :is="page.component"
+          :current-stack="page"
+          v-bind="page.params">
+        </component>
+        <template #fallback>
+          <div>Loading...</div>
+        </template>
+      </Suspense>
       <button type="button" class="btn-close" @:click="close">
         <span class="icon-cross"></span>
         <span class="visually-hidden">Close</span>
