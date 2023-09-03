@@ -1,7 +1,18 @@
-import { markRaw } from 'vue';
+import { markRaw, defineAsyncComponent, type Component } from 'vue';
 import type { RouteLocation } from 'vue-router';
 
 const S = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+
+const loadComponent = (route: RouteLocation): Component => {
+  let component = route.matched[0].components!.default;
+  if (typeof component == 'function') {
+    // component may type () => import(...) when Vue load.
+    // https://vuejs.org/guide/components/async.html#basic-usage
+    // @ts-ignore
+    component = defineAsyncComponent(component);
+  }
+  return component;
+};
 
 interface PageOptions {
   route: RouteLocation;
@@ -14,6 +25,7 @@ export interface Page extends PageOptions {
   onBeforePop: (a: () => boolean) => void;
   equals: (a: Page) => boolean;
   uuid: string;
+  component: Component;
 }
 
 export function createPage(page: PageOptions): Page {
@@ -23,6 +35,7 @@ export function createPage(page: PageOptions): Page {
   const onBeforePopHandlers = [];
   return {
     route: markRaw(page.route),
+    component: markRaw(loadComponent(page.route)),
 
     uuid,
 
