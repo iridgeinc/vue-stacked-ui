@@ -7,17 +7,6 @@ const stack = useStack();
 
 const baseWidth = 95;
 
-const loadComponent = (route: RouteLocation): Component => {
-  let component = route.matched[0].components!.default;
-  if (typeof component == 'function') {
-    // component may type () => import(...) when Vue load.
-    // https://vuejs.org/guide/components/async.html#basic-usage
-    // @ts-ignore
-    component = defineAsyncComponent(component);
-  }
-  return component;
-};
-
 watchEffect(() => {
   if (stack.hasStack.value) {
     document.body.style.overflow = 'hidden';
@@ -44,7 +33,7 @@ function close() {
       </div>
       <div class="drawer" :style="{ right: drawerOffset(i) + '%' }">
         <Suspense>
-          <component :is="loadComponent(page.route)" :current-stack="page" v-bind="page.route.params"> </component>
+          <component :is="page.component" :current-stack="page" v-bind="page.route.params"> </component>
           <template #fallback>
             <div>Loading...</div>
           </template>
