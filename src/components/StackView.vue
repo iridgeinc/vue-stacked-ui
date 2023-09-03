@@ -26,9 +26,9 @@ watchEffect(() => {
   }
 });
 
-const drawerWidth = (index: number) => {
+const drawerOffset = (index: number) => {
   const count = stack.stack.value.length;
-  return 100 - ((100 - baseWidth) / count) * (index + 1);
+  return 100 - ((100 - baseWidth) / count) * (index + 1) - baseWidth;
 };
 
 function close() {
@@ -42,7 +42,7 @@ function close() {
       <div class="background" @:click="close">
         <div></div>
       </div>
-      <div class="drawer" :style="{ width: drawerWidth(i) + '%' }">
+      <div class="drawer" :style="{ right: drawerOffset(i) + '%' }">
         <Suspense>
           <component :is="loadComponent(page.route)" :current-stack="page" v-bind="page.route.params"> </component>
           <template #fallback>
