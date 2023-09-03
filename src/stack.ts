@@ -1,82 +1,138 @@
-import type { Router, RouteLocationNormalized, RouteLocationRaw } from 'vue-router';
-import { inject, markRaw, reactive } from 'vue';
+import type { Router, RouteLocationNormalized, RouteLocationRaw, RouteLocation } from 'vue-router';
+import { inject, computed, ref, type Ref, type ComputedRef } from 'vue';
 import { createPage } from './page';
 import type { Page } from './page';
 
 export interface Stack {
-  stack: (Page | undefined)[];
-  router: Router;
-  pathToPage: (path: string) => Page[];
-  handle: (to: RouteLocationNormalized, from: RouteLocationNormalized) => Promise<boolean>;
-  push: (loc: RouteLocationRaw) => void;
+  stack: Ref<Page[]>;
+  push: (route: RouteLocationRaw) => void;
   pop: () => void;
+  remove: (page: Page) => void;
+  hasStack: ComputedRef<boolean>;
 }
 
 export function useStack(): Stack {
-  return inject("stacked-ui")!
+  return inject('stacked-ui')!;
 }
 
+/*
+ * Build fullPath from Pages.
+ */
+const pagesToPath = (pages: Page[]): string => {
+  const root = location.pathname.split('//')[0];
+  return root + '/' + pages.map((page) => page.route.fullPath).join('/');
+};
+
 export function createStack(router: Router): Stack {
-  return {
-    stack: reactive([]),
-    router: router,
+  const stack: Ref<Array<Page>> = ref([]);
 
-    pathToPage(path: string): Page[] {
-      const r: Page[] = [];
-      for (let url of path.split('//').slice(1)) {
-        if (!url.startsWith('/')) {
-          url = '/' + url;
-        }
-        const routed = this.router.resolve(url);
-
-        // Stop stacking if met non stackable route.
-        if (routed.meta.stackable !== true || routed.matched.length == 0) break;
-        if (!routed.matched[0].components) break;
-
-        const component = routed.matched[0].components.default;
-
-        r.push(
-          createPage({
-            url: url,
-            component: markRaw(component),
-            params: routed.params,
-            depth: r.length,
-          }),
-        );
-      }
-      return r;
-    },
-
-    async handle(to: RouteLocationNormalized, _from: RouteLocationNormalized): Promise<boolean> {
-      const toPages = this.pathToPage(to.fullPath);
-      const fromPages = this.stack.filter((page): page is Page => page != undefined);
-
-      // push newly found pages to stack
-      for (let i = fromPages.length; i < toPages.length; i++) {
-        await new Promise((resolve) => setTimeout(resolve, 30));
-        this.stack[i] = markRaw(toPages[i]);
-      }
-
-      // pop newly removed pages from stack
-      for (let i = fromPages.length - 1; i >= toPages.length; i--) {
-        await new Promise((resolve) => setTimeout(resolve, 30));
-        if (!fromPages[i].onBeforePopHandler?.()) {
-          return false;
-        }
-        // remove page from URL and Stack object.
-        history.replaceState(history.state, '', location.href.split('//').slice(0, -1).join('//'));
-        this.stack[i] = undefined;
-      }
-      return true;
-    },
-
-    push(loc: RouteLocationRaw) {
-      const targetLocation = this.router.resolve(loc);
-      return this.router.push(location.pathname + '/' + targetLocation.fullPath);
-    },
-
-    pop() {
-      this.router.push(location.pathname.split('//').slice(0, -1).join('//'));
-    },
+  /*
+   * Resolve url with router, then returns Page, or undefined if not found.
+   */
+  const pathToPage = (url: RouteLocationRaw): Page | undefined => {
+    if (typeof url === 'string' || url instanceof String) {
+      url = ('/' + url).replace(/^\/+/, '/');
+    }
+    const route = router.resolve(url);
+    if (route.meta.stackable !== true || route.matched.length == 0) return;
+    if (!route.matched[0].components) return;
+    return createPage({ route });
   };
+
+  const push = (route: RouteLocationRaw) => {
+    const page = pathToPage(route);
+    if (page === undefined) throw new Error('Can not resolve location');
+    stack.value.push(page);
+    router.replace(pagesToPath(stack.value));
+  };
+
+  const pop = () => {
+    const page = stack.value[stack.value.length - 1];
+    const res = page.onBeforePopHandlers.map((f) => f());
+    if (res.every((x) => x === true)) {
+      stack.value.pop();
+      router.replace(pagesToPath(stack.value));
+    }
+  };
+
+  const remove = (target: Page) => {
+    const res = target.onBeforePopHandlers.map((f) => f());
+    if (res.every((x) => x === true)) {
+      stack.value = stack.value.filter((page) => !page.equals(target));
+      router.replace(pagesToPath(stack.value));
+    }
+  };
+
+  const hasStack = computed(() => stack.value.length > 0);
+
+  return { stack, push, pop, remove, hasStack };
+}
+
+export function makeHandler(stack: Stack) {
+  // for visual effect, Drawer closes fluently.
+  const waitSlide = async () => {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  };
+
+  /*
+   * Remove all stacks then build from path.
+   */
+  const initStacks = async (path: string): Promise<void> => {
+    for (;;) {
+      if (stack.stack.value.length === 0) break;
+      stack.pop();
+    }
+
+    for (const url of path.split('//').slice(1)) {
+      stack.push(url);
+      await waitSlide();
+    }
+  };
+
+  const removePrefix = (s: string, prefix: string): string | undefined => {
+    if (!s.startsWith(prefix)) return;
+    if (s === prefix) return;
+    return s.replace(prefix, '');
+  };
+
+  /*
+   * Split path-string with '//' and normalize '/' prefixed.
+   */
+  const splitPath = (path: string): string[] => {
+    const paths = path.split('//').slice(1);
+    return paths.map((x) => '/' + x);
+  };
+
+  const handleUrlChange = async (to: RouteLocation, from: RouteLocation) => {
+    const [toPath, fromPath] = [to.fullPath, from.fullPath];
+
+    // Same as known stack, nothing to do.
+    const isSameStack = toPath === pagesToPath(stack.stack.value);
+    if (isSameStack) return;
+
+    // If only removed from tail. pop pages.
+    const popSuffix = removePrefix(fromPath, toPath);
+    if (popSuffix !== undefined) {
+      for (const _path of splitPath(popSuffix)) {
+        stack.pop();
+        await waitSlide();
+      }
+      return;
+    }
+
+    // If only added to tail. push pages.
+    const pushSuffix = removePrefix(toPath, fromPath);
+    if (pushSuffix !== undefined) {
+      for (const path of splitPath(pushSuffix)) {
+        stack.push(path);
+        await waitSlide();
+      }
+      return;
+    }
+
+    // Otherwith rebuild all
+    initStacks(toPath);
+  };
+
+  return handleUrlChange;
 }
