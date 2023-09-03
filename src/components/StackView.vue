@@ -76,9 +76,9 @@ function close() {
   width: 100%;
   height: 100%;
   overflow-y: scroll;
-  pointer-events: none;
   background: #000;
   opacity: 0.4;
+  pointer-events: auto;
 }
 
 .background div {
@@ -92,7 +92,6 @@ function close() {
 
 .background.v-enter-from,
 .background.v-leave-to {
-  pointer-events: auto;
   opacity: 0;
 }
 
