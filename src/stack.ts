@@ -1,4 +1,4 @@
-import type { Router, RouteLocationNormalized, RouteLocationRaw, RouteLocation } from 'vue-router';
+import type { Router, RouteLocationRaw, RouteLocationNamedRaw, RouteLocation } from 'vue-router';
 import { inject, computed, ref, type Ref, type ComputedRef } from 'vue';
 import { createPage } from './page';
 import type { Page } from './page';
@@ -8,6 +8,7 @@ export interface Stack {
   push: (route: RouteLocationRaw) => void;
   pop: () => void;
   remove: (page: Page) => void;
+  replace: (route: RouteLocationRaw) => void;
   hasStack: ComputedRef<boolean>;
 }
 
@@ -29,17 +30,22 @@ export function createStack(router: Router): Stack {
   /*
    * Resolve url with router, then returns Page, or undefined if not found.
    */
-  const pathToPage = (url: RouteLocationRaw): Page | undefined => {
-    if (typeof url === 'string' || url instanceof String) {
-      url = ('/' + url).replace(/^\/+/, '/');
+  const pathToPage = (loc: RouteLocationRaw): Page | undefined => {
+    if (typeof loc === 'string' || loc instanceof String) {
+      loc = ('/' + loc).replace(/^\/+/, '/');
+    } else if (!('name' in loc)) {
+      // if RouteLocationPathRaw, Avoid router uses root slug.
+      const name = stack.value[stack.value.length - 1].route.name;
+      // @ts-ignore
+      loc.name = name;
     }
-    const route = router.resolve(url);
+    const route = router.resolve(loc);
     if (route.meta.stackable !== true || route.matched.length == 0) return;
     if (!route.matched[0].components) return;
     return createPage({ route });
   };
 
-  const push = (route: RouteLocationRaw) => {
+  const push = (route: string | RouteLocationNamedRaw) => {
     const page = pathToPage(route);
     if (page === undefined) throw new Error('Can not resolve location');
     stack.value.push(page);
@@ -63,9 +69,17 @@ export function createStack(router: Router): Stack {
     }
   };
 
+  const replace = (route: RouteLocationRaw) => {
+    const page = pathToPage(route);
+    if (page === undefined) throw new Error('Can not resolve location');
+    page.uuid = stack.value[stack.value.length - 1].uuid;
+    stack.value[stack.value.length - 1] = page;
+    router.replace(pagesToPath(stack.value));
+  };
+
   const hasStack = computed(() => stack.value.length > 0);
 
-  return { stack, push, pop, remove, hasStack };
+  return { stack, push, pop, remove, replace, hasStack };
 }
 
 export function makeHandler(stack: Stack) {
