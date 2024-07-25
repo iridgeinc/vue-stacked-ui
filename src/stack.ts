@@ -131,6 +131,16 @@ export function makeHandler(stack: Stack) {
         stack.pop();
         await waitSlide();
       }
+      if (stack.stack.value.length === 0) {
+        // Update URL without reloading
+        history.pushState(history.state, '', toPath);
+
+        // Use a timeout to simulate a navigation update
+        setTimeout(() => {
+          // Force Vue Router to handle the route change
+          window.dispatchEvent(new Event('popstate'));
+        }, 0);
+      }
       return;
     }
 
