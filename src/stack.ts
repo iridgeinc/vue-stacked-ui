@@ -10,6 +10,7 @@ export interface Stack {
   remove: (page: Page) => void;
   replace: (route: RouteLocationRaw) => void;
   hasStack: ComputedRef<boolean>;
+  isBack: (page: Page) => ComputedRef<boolean>;
 }
 
 export function useStack(): Stack {
@@ -79,7 +80,13 @@ export function createStack(router: Router): Stack {
 
   const hasStack = computed(() => stack.value.length > 0);
 
-  return { stack, push, pop, remove, replace, hasStack };
+  const isBack = (page: Page) => computed(() => {
+    const idx = stack.value.findIndex((p) => p?.equals(page))
+    if (idx === -1) return false
+    return idx !== stack.value.length - 1
+  })
+
+  return { stack, push, pop, remove, replace, hasStack, isBack };
 }
 
 export function makeHandler(stack: Stack) {
