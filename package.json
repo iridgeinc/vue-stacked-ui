@@ -1,6 +1,6 @@
 {
   "name": "vue-stacked-ui",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "vue-stacked-ui provides 'Stacked UI' at the top of vue-router(v4).",
   "main": "dist/vue-stacked-ui.js",
   "module": "dist/vue-stacked-ui.esm.js",
@@ -59,12 +59,11 @@
     "stylelint-config-standard-scss": "^3.0.0",
     "stylelint-scss": "^4.1.0",
     "typescript": "^4.5.4",
-    "vue": "^3.3.2"
+    "vue": "^3.4.38",
+    "vue-router": "^4.4.3"
   },
   "peerDependencies": {
-    "vue": "^3.3.2"
-  },
-  "dependencies": {
-    "vue-router": "^4.1.6"
+    "vue": "^3.4.0",
+    "vue-router": "^4.0.0"
   }
 }
