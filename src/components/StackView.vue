@@ -7,11 +7,15 @@ const stack = useStack();
 
 const baseWidth = 95;
 
+let cancel: number | undefined = undefined;
 watchEffect(() => {
   if (stack.hasStack.value) {
+    clearTimeout(cancel);
     document.body.style.overflow = 'hidden';
   } else {
-    document.body.style.overflow = 'auto';
+    cancel = window.setTimeout(() => {
+      document.body.style.overflow = 'auto';
+    }, 150);
   }
 });
 
@@ -28,15 +32,10 @@ function close() {
 <template>
   <TransitionGroup>
     <template v-for="(page, i) in stack.stack.value" :key="page.uuid">
-      <div class="background" @click="close">
+      <div class="background" @:click="close">
         <div></div>
       </div>
       <div class="drawer" :style="{ right: drawerOffset(i) + '%' }">
-        <button type="button" class="btn-close" @click="close">
-          <span class="icon-cross"></span>
-          <span class="visually-hidden">Close</span>
-        </button>
-
         <Suspense>
           <component :is="page.component" :current-stack="page" v-bind="page.route.params"> </component>
           <template #fallback>
@@ -44,6 +43,10 @@ function close() {
           </template>
         </Suspense>
       </div>
+      <button type="button" class="btn-close" @:click="close">
+        <span class="icon-cross"></span>
+        <span class="visually-hidden">Close</span>
+      </button>
     </template>
   </TransitionGroup>
 </template>
@@ -52,10 +55,9 @@ function close() {
 .drawer {
   position: absolute;
   right: 0;
-  z-index: 10;
   width: 95%;
   height: 100%;
-  overflow-y: auto;
+  overflow-y: scroll;
   pointer-events: auto;
   background-color: #fff;
   transition: all 0.5s ease 0s;
@@ -73,7 +75,6 @@ function close() {
 
 .background {
   position: absolute;
-  z-index: 10;
   width: 100%;
   height: 100%;
   overflow-y: scroll;
@@ -133,13 +134,11 @@ span {
 }
 
 .btn-close {
-  position: sticky;
+  position: fixed;
+  pointer-events: auto;
   right:20px;
   top:20px;
-  z-index: 11;
-  margin-left: auto;
-  margin-right: 20px;
-  margin-bottom: 20px;
+  margin: 0;
   border: 0;
   padding: 0;
   background: #555;
@@ -153,6 +152,8 @@ span {
   align-items: center;
   cursor: pointer;
   transition: all 150ms;
+  transition: transform 150ms 300ms;
+  transform: translateX(0);
 
 .icon-cross {
 @include cross(30px, #fff, 3px);
@@ -164,6 +165,15 @@ span {
   background: #888;
 }
 }
+
+.btn-close.v-enter-from{
+  transform: translateX(200%);
+}
+.btn-close.v-leave-to {
+  transition: all 150ms;
+  transform: translateX(200%);
+}
+
 
 .visually-hidden {
   display: none;
