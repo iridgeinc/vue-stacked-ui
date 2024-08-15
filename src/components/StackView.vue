@@ -38,11 +38,11 @@ function close() {
             <div>Loading...</div>
           </template>
         </Suspense>
-        <button type="button" class="btn-close" @:click="close">
-          <span class="icon-cross"></span>
-          <span class="visually-hidden">Close</span>
-        </button>
       </div>
+      <button type="button" class="btn-close" @:click="close">
+        <span class="icon-cross"></span>
+        <span class="visually-hidden">Close</span>
+      </button>
     </template>
   </TransitionGroup>
 </template>
@@ -51,7 +51,6 @@ function close() {
 .drawer {
   position: absolute;
   right: 0;
-  z-index: 10;
   width: 95%;
   height: 100%;
   overflow-y: scroll;
@@ -72,7 +71,6 @@ function close() {
 
 .background {
   position: absolute;
-  z-index: 10;
   width: 100%;
   height: 100%;
   overflow-y: scroll;
@@ -132,7 +130,8 @@ span {
 }
 
 .btn-close {
-  position: absolute;
+  position: fixed;
+  pointer-events: auto;
   right:20px;
   top:20px;
   margin: 0;
