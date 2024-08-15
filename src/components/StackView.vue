@@ -7,11 +7,15 @@ const stack = useStack();
 
 const baseWidth = 95;
 
+let cancel: number | undefined = undefined;
 watchEffect(() => {
   if (stack.hasStack.value) {
+    clearTimeout(cancel);
     document.body.style.overflow = 'hidden';
   } else {
-    document.body.style.overflow = 'auto';
+    cancel = window.setTimeout(() => {
+      document.body.style.overflow = 'auto';
+    }, 150);
   }
 });
 
@@ -148,6 +152,8 @@ span {
   align-items: center;
   cursor: pointer;
   transition: all 150ms;
+  transition: transform 150ms 300ms;
+  transform: translateX(0);
 
 .icon-cross {
 @include cross(30px, #fff, 3px);
@@ -159,6 +165,15 @@ span {
   background: #888;
 }
 }
+
+.btn-close.v-enter-from{
+  transform: translateX(200%);
+}
+.btn-close.v-leave-to {
+  transition: all 150ms;
+  transform: translateX(200%);
+}
+
 
 .visually-hidden {
   display: none;
