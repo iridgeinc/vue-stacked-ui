@@ -28,21 +28,20 @@ function close() {
 <template>
   <TransitionGroup>
     <template v-for="(page, i) in stack.stack.value" :key="page.uuid">
-      <div class="background" @click="close">
+      <div class="background" @:click="close">
         <div></div>
       </div>
       <div class="drawer" :style="{ right: drawerOffset(i) + '%' }">
-        <button type="button" class="btn-close" @click="close">
-          <span class="icon-cross"></span>
-          <span class="visually-hidden">Close</span>
-        </button>
-
         <Suspense>
           <component :is="page.component" :current-stack="page" v-bind="page.route.params"> </component>
           <template #fallback>
             <div>Loading...</div>
           </template>
         </Suspense>
+        <button type="button" class="btn-close" @:click="close">
+          <span class="icon-cross"></span>
+          <span class="visually-hidden">Close</span>
+        </button>
       </div>
     </template>
   </TransitionGroup>
@@ -55,7 +54,7 @@ function close() {
   z-index: 10;
   width: 95%;
   height: 100%;
-  overflow-y: auto;
+  overflow-y: scroll;
   pointer-events: auto;
   background-color: #fff;
   transition: all 0.5s ease 0s;
@@ -133,13 +132,10 @@ span {
 }
 
 .btn-close {
-  position: sticky;
+  position: absolute;
   right:20px;
   top:20px;
-  z-index: 11;
-  margin-left: auto;
-  margin-right: 20px;
-  margin-bottom: 20px;
+  margin: 0;
   border: 0;
   padding: 0;
   background: #555;
