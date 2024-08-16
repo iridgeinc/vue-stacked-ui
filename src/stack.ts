@@ -1,15 +1,17 @@
-import type { Router, RouteLocationRaw, RouteLocationNamedRaw, RouteLocation } from 'vue-router';
-import { inject, computed, ref, type Ref, type ComputedRef } from 'vue';
+import type { Router, RouteLocationRaw, RouteLocationNormalized, RouteLocationNormalizedGeneric, RouteLocationNormalizedLoadedGeneric } from 'vue-router';
+import { inject, computed, ref, shallowReadonly, reactive } from 'vue';
+import type { UnwrapNestedRefs, DeepReadonly, Ref, ComputedRef, Reactive } from 'vue';
 import { createPage } from './page';
 import type { Page } from './page';
 
+type ReadonlyStacks = Readonly<Reactive<Array<Page>>>
+
 export interface Stack {
-  stack: Ref<Page[]>;
-  push: (route: RouteLocationRaw) => void;
+  getStacks: () => ReadonlyStacks;
+  push: (route: string | RouteLocationRaw) => void;
   pop: () => void;
   remove: (page: Page) => void;
-  replace: (route: RouteLocationRaw) => void;
-  hasStack: ComputedRef<boolean>;
+  replace: (route: string | RouteLocationRaw) => void;
 }
 
 export function useStack(): Stack {
@@ -19,14 +21,35 @@ export function useStack(): Stack {
 /*
  * Build fullPath from Pages.
  */
-const pagesToPath = (pages: Page[]): string => {
-  const root = location.pathname.split('//')[0];
-  return root + '/' + pages.map((page) => page.route.fullPath).join('/');
+export const pagesToPaths = (pages: ReadonlyStacks): string[] => {
+  return pages.map((page) => page.route.fullPath)
+}
+export const pagesToPath = (pages: ReadonlyStacks): string => pagesToPaths(pages).join('/')
+
+
+export const removePrefix = <T>(xs: T[], ys: T[]): T[] => {
+  if (xs.length === 0 || ys.length === 0) return xs
+  if (xs[0] !== ys[0]) return xs
+  return removePrefix(xs.slice(1), ys.slice(1))
+}
+
+
+/*
+ * Split path-string with '//' and normalize '/' prefixed.
+ */
+export const splitPath = (path: string): string[] => {
+  const paths = path.split(/\/\/(?=[^\/])/)
+  return paths.map(x => x.startsWith('/') ? x : '/' + x)
 };
 
-export function createStack(router: Router): Stack {
-  const stack: Ref<Array<Page>> = ref([]);
 
+
+export function createStack(router: Router): Stack {
+  const stack: Reactive<Array<Page>> = reactive([]);
+
+  const getStacks = () => shallowReadonly(stack)
+  
+  
   /*
    * Resolve url with router, then returns Page, or undefined if not found.
    */
@@ -35,51 +58,53 @@ export function createStack(router: Router): Stack {
       loc = ('/' + loc).replace(/^\/+/, '/');
     } else if (!('name' in loc)) {
       // if RouteLocationPathRaw, Avoid router uses root slug.
-      const name = stack.value[stack.value.length - 1].route.name;
+      const name = stack[stack.length - 1].route.name;
       // @ts-ignore
       loc.name = name;
     }
     const route = router.resolve(loc);
-    if (route.meta.stackable !== true || route.matched.length == 0) return;
+    if (route.matched.length == 0) return;
+    if (route.meta?.stackable === false) return;
     if (!route.matched[0].components) return;
     return createPage({ route });
   };
 
-  const push = (route: string | RouteLocationNamedRaw) => {
+  const push = (route: string | RouteLocationRaw) => {
     const page = pathToPage(route);
-    if (page === undefined) throw new Error('Can not resolve location');
-    stack.value.push(page);
-    router.replace(pagesToPath(stack.value));
+    if (page === undefined) throw new Error(`Can not resolve location ${route}`);
+    stack.push(page);
+    router.push(pagesToPaths(getStacks()).join('/'));
   };
 
   const pop = () => {
-    const page = stack.value[stack.value.length - 1];
+    const page = stack[stack.length - 1];
     const res = page.onBeforePopHandlers.map((f) => f());
     if (res.every((x) => x === true)) {
-      stack.value.pop();
-      router.replace(pagesToPath(stack.value));
+      stack.pop();
+      router.push(pagesToPaths(getStacks()).join('/'));
     }
   };
 
   const remove = (target: Page) => {
     const res = target.onBeforePopHandlers.map((f) => f());
     if (res.every((x) => x === true)) {
-      stack.value = stack.value.filter((page) => !page.equals(target));
-      router.replace(pagesToPath(stack.value));
+      // FIXME modify stack here
+      const index = stack.findIndex((page) => !page.equals(target));
+      if (index > 0)
+        stack.splice(index, 1)
+      router.push(pagesToPaths(getStacks()).join('/'));
     }
   };
 
-  const replace = (route: RouteLocationRaw) => {
+  const replace = (route: string | RouteLocationRaw) => {
     const page = pathToPage(route);
     if (page === undefined) throw new Error('Can not resolve location');
-    page.uuid = stack.value[stack.value.length - 1].uuid;
-    stack.value[stack.value.length - 1] = page;
-    router.replace(pagesToPath(stack.value));
+    page.uuid = stack[stack.length - 1].uuid;
+    stack[stack.length - 1] = page;
+    router.push(pagesToPaths(getStacks()).join('/'));
   };
 
-  const hasStack = computed(() => stack.value.length > 0);
-
-  return { stack, push, pop, remove, replace, hasStack };
+  return { getStacks, push, pop, remove, replace };
 }
 
 export function makeHandler(stack: Stack) {
@@ -88,75 +113,38 @@ export function makeHandler(stack: Stack) {
     await new Promise((resolve) => setTimeout(resolve, 100));
   };
 
-  /*
-   * Remove all stacks then build from path.
-   */
-  const initStacks = async (path: string): Promise<void> => {
-    for (;;) {
-      if (stack.stack.value.length === 0) break;
-      stack.pop();
+  const handleUrlChange = async (to: string, from: string) => {
+    {
+      // Same as known stack, nothing to do.
+      const current = pagesToPaths(stack.getStacks())
+      const isSameStack = to === current.join('/')
+      if (isSameStack) return;
     }
 
-    for (const url of path.split('//').slice(1)) {
-      stack.push(url);
-      await waitSlide();
-    }
-  };
-
-  const removePrefix = (s: string, prefix: string): string | undefined => {
-    if (!s.startsWith(prefix)) return;
-    if (s === prefix) return;
-    return s.replace(prefix, '');
-  };
-
-  /*
-   * Split path-string with '//' and normalize '/' prefixed.
-   */
-  const splitPath = (path: string): string[] => {
-    const paths = path.split('//').slice(1);
-    return paths.map((x) => '/' + x);
-  };
-
-  const handleUrlChange = async (to: RouteLocation, from: RouteLocation) => {
-    const [toPath, fromPath] = [to.fullPath, from.fullPath];
-
-    // Same as known stack, nothing to do.
-    const isSameStack = toPath === pagesToPath(stack.stack.value);
-    if (isSameStack) return;
-
-    // If only removed from tail. pop pages.
-    const popSuffix = removePrefix(fromPath, toPath);
-    if (popSuffix !== undefined) {
-      for (const _path of splitPath(popSuffix)) {
+    {
+      // If only removed from tail. pop pages.
+      const current = pagesToPaths(stack.getStacks())
+      const popSuffix = removePrefix(current, splitPath(to));
+      for (const p of popSuffix) {
         stack.pop();
-        await waitSlide();
+        // wait only non root stacks
+        if (stack.getStacks().length > 1)
+          await waitSlide();
       }
-      if (stack.stack.value.length === 0) {
-        // Update URL without reloading
-        history.pushState(history.state, '', toPath);
-
-        // Use a timeout to simulate a navigation update
-        setTimeout(() => {
-          // Force Vue Router to handle the route change
-          window.dispatchEvent(new Event('popstate'));
-        }, 0);
-      }
-      return;
     }
 
-    // If only added to tail. push pages.
-    const pushSuffix = removePrefix(toPath, fromPath);
-    if (pushSuffix !== undefined) {
-      for (const path of splitPath(pushSuffix)) {
-        stack.push(path);
-        await waitSlide();
+    {
+      // If only added to tail. push pages.
+      const current = pagesToPaths(stack.getStacks())
+      const pushSuffix = removePrefix(splitPath(to), current);
+      for (const p of pushSuffix) {
+        stack.push(p);
+        // wait only non root stacks
+        if (stack.getStacks().length > 1)
+          await waitSlide();
       }
-      return;
     }
-
-    // Otherwith rebuild all
-    initStacks(toPath);
   };
-
+  
   return handleUrlChange;
 }

@@ -23,6 +23,7 @@
     "src/**/*.vue"
   ],
   "exclude": [
+    "test/**",
     "**/node_modules",
   ]
 }

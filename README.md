@@ -40,14 +40,16 @@ import 'vue-stacked-ui/dist/vue-stacked-ui.css'
 app.use(stackedUI, {router: router});
 ```
 
-### (Preparation) Allow `slug` parameter in `router/index.ts`
+### (Preparation) Add comonent tags in App.vue
 
 ```typescript
-    {
-      path: '/about/:v1?/:v2?/:v3?/\/:slug(.*)?',  // add "/\/:slug(.*)?"
-      props: true,
-      meta: { stackable: true }  // Mark page can use as stack.
-    }
+<StackRootView />
+<!-- Reserve Drawer Area  -->
+<div id="drawer_wrapper">
+  <StackView />
+</div>
+<!-- Reserve Drawer Area -->
+    
 ```
 
 ### (Use) Control stack
