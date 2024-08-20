@@ -88,9 +88,8 @@ export function createStack(router: Router): Stack {
   const remove = (target: Page) => {
     const res = target.onBeforePopHandlers.map((f) => f());
     if (res.every((x) => x === true)) {
-      // FIXME modify stack here
-      const index = stack.findIndex((page) => !page.equals(target));
-      if (index > 0)
+      const index = stack.findIndex((page) => page.equals(target));
+      if (index !== -1)
         stack.splice(index, 1)
       router.push(pagesToPaths(getStacks()).join('/'));
     }
