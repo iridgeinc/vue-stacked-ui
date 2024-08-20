@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { watchEffect, defineAsyncComponent, type Component } from 'vue';
+import { watchEffect } from 'vue';
 import { useStack } from '../stack';
-import type { RouteLocation } from 'vue-router';
 
 const stack = useStack();
 
