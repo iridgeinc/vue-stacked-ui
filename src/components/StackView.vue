@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { watchEffect, defineAsyncComponent, type Component } from 'vue';
+import { watchEffect } from 'vue';
 import { useStack } from '../stack';
-import type { RouteLocation } from 'vue-router';
 
 const stack = useStack();
 
@@ -9,18 +8,21 @@ const baseWidth = 95;
 
 let cancel: number | undefined = undefined;
 watchEffect(() => {
-  if (stack.hasStack.value) {
+  if (stack.getStacks().length > 1) {
     clearTimeout(cancel);
+    cancel = undefined;
     document.body.style.overflow = 'hidden';
   } else {
-    cancel = window.setTimeout(() => {
-      document.body.style.overflow = 'auto';
-    }, 150);
+    if (cancel === undefined) {
+      cancel = window.setTimeout(() => {
+        document.body.style.overflow = 'auto';
+      }, 150);
+    }
   }
 });
 
 const drawerOffset = (index: number) => {
-  const count = stack.stack.value.length;
+  const count = stack.getStacks().length - 1;
   return 100 - ((100 - baseWidth) / count) * (index + 1) - baseWidth;
 };
 
@@ -31,7 +33,7 @@ function close() {
 
 <template>
   <TransitionGroup>
-    <template v-for="(page, i) in stack.stack.value" :key="page.uuid">
+    <template v-for="(page, i) in stack.getStacks().slice(1)" :key="page.uuid">
       <div class="background" @:click="close">
         <div></div>
       </div>
