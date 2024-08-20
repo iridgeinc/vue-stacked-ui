@@ -136,9 +136,9 @@ span {
 }
 
 .btn-close {
-  position: fixed;
+  position: absolute;
   pointer-events: auto;
-  right:20px;
+  right:25px;
   top:20px;
   margin: 0;
   border: 0;
