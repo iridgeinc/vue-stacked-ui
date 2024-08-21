@@ -107,11 +107,6 @@ export function createStack(router: Router): Stack {
 }
 
 export function makeHandler(stack: Stack) {
-  // for visual effect, Drawer closes fluently.
-  const waitSlide = async () => {
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  };
-
   const handleUrlChange = async (to: string, from: string) => {
     {
       // Same as known stack, nothing to do.
@@ -126,9 +121,8 @@ export function makeHandler(stack: Stack) {
       const popSuffix = removePrefix(current, splitPath(to));
       for (const p of popSuffix) {
         stack.pop();
-        // wait only non root stacks
-        if (stack.getStacks().length > 1)
-          await waitSlide();
+        // little wati for smooth sliding animation when "bulk pop".
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
     }
 
@@ -138,9 +132,6 @@ export function makeHandler(stack: Stack) {
       const pushSuffix = removePrefix(splitPath(to), current);
       for (const p of pushSuffix) {
         stack.push(p);
-        // wait only non root stacks
-        if (stack.getStacks().length > 1)
-          await waitSlide();
       }
     }
   };
