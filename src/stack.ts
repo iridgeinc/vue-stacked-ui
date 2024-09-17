@@ -9,7 +9,7 @@ type ReadonlyStacks = Readonly<Reactive<Array<Page>>>
 export interface Stack {
   getStacks: () => ReadonlyStacks;
   push: (route: string | RouteLocationRaw) => void;
-  pop: () => void;
+  pop: (allowRoot?: boolean) => void;
   remove: (page: Page) => void;
   replace: (route: string | RouteLocationRaw) => void;
 }
@@ -76,10 +76,10 @@ export function createStack(router: Router): Stack {
     router.push(pagesToPaths(getStacks()).join('/'));
   };
 
-  const pop = () => {
+  const pop = (allowRoot: boolean = false) => {
     const page = stack[stack.length - 1];
     const res = page.onBeforePopHandlers.map((f) => f());
-    if (res.every((x) => x === true)) {
+    if (res.every((x) => x === true) && (allowRoot || getStacks().length > 1)) {
       stack.pop();
       router.push(pagesToPaths(getStacks()).join('/'));
     }
@@ -120,7 +120,7 @@ export function makeHandler(stack: Stack) {
       const current = pagesToPaths(stack.getStacks())
       const popSuffix = removePrefix(current, splitPath(to));
       for (const p of popSuffix) {
-        stack.pop();
+        stack.pop(true);
         // little wati for smooth sliding animation when "bulk pop".
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
