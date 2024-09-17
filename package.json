@@ -1,6 +1,6 @@
 {
   "name": "vue-stacked-ui",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "description": "vue-stacked-ui provides 'Stacked UI' at the top of vue-router(v4).",
   "main": "dist/vue-stacked-ui.js",
   "module": "dist/vue-stacked-ui.esm.js",
