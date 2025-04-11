@@ -177,43 +177,35 @@ export function createStack(router: Router): Stack {
 }
 
 export function makeHandler(stack: Stack) {
-  let isNavigating = false;
-
   const handleUrlChange = async (to: string, from: string) => {
-    if (isNavigating) return;
-    
-    try {
-      isNavigating = true;
+    {
+      // Same as known stack, nothing to do.
+      const current = pagesToPaths(stack.getStacks())
+      const isSameStack = to === current.join('/')
+      if (isSameStack) return;
+    }
 
-      {
-        // Same as known stack, nothing to do.
-        const current = pagesToPaths(stack.getStacks())
-        const isSameStack = to === current.join('/')
-        if (isSameStack) return;
+    {
+      // If only removed from tail. pop pages.
+      const current = pagesToPaths(stack.getStacks())
+      const popSuffix = removePrefix(current, splitPath(to));
+      for (const p of popSuffix) {
+        await stack.pop(true);
+        // little wati for smooth sliding animation when "bulk pop".
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
+    }
 
-      {
-        // If only removed from tail. pop pages.
-        const current = pagesToPaths(stack.getStacks())
-        const popSuffix = removePrefix(current, splitPath(to));
-        for (const p of popSuffix) {
-          await stack.pop(true);
-          // little wati for smooth sliding animation when "bulk pop".
-          await new Promise((resolve) => setTimeout(resolve, 100));
-        }
+    {
+      // If only added to tail. push pages.
+      const current = pagesToPaths(stack.getStacks())
+      const pushSuffix = removePrefix(splitPath(to), current);
+      for (const p of pushSuffix) {
+        // Using stack.stackPush instead of stack.push to avoid triggering stack.pop in the process
+        await stack.stackPush(p);
       }
-
-      {
-        // If only added to tail. push pages.
-        const current = pagesToPaths(stack.getStacks())
-        const pushSuffix = removePrefix(splitPath(to), current);
-        for (const p of pushSuffix) {
-          await stack.stackPush(p);
-        }
-        stack.router.push(pagesToPaths(stack.getStacks()).join('/'));
-      }
-    } finally {
-      isNavigating = false;
+      // call router.push only once
+      stack.router.push(pagesToPaths(stack.getStacks()).join('/'));
     }
   };
   
