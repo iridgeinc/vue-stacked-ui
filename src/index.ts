@@ -10,6 +10,7 @@ import StackReplace from './components/StackReplace.vue';
 export type { Stack } from './stack';
 export type { Page } from './page';
 export { useStack } from './stack';
+export { registerBeforeEachGuard } from './stack';
 
 export const stackedUI: Plugin = {
   install: (app: App, options: { router: Router }) => {
