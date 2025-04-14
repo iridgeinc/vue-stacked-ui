@@ -1,4 +1,4 @@
-import type { Router, RouteLocationRaw, RouteLocation } from 'vue-router';
+import type { Router, RouteLocationRaw, RouteLocation, NavigationGuardNext } from 'vue-router';
 import { inject, shallowReadonly, reactive } from 'vue';
 import type { Reactive } from 'vue';
 import { createPage } from './page';
@@ -16,22 +16,14 @@ type NavigationGuard = (
 export interface Stack {
   getStacks: () => ReadonlyStacks;
   push: (route: string | RouteLocationRaw) => void;
-  stackPush: (route: string | RouteLocationRaw) => Promise<boolean>;
   pop: (allowRoot?: boolean) => void;
   remove: (page: Page) => void;
   replace: (route: string | RouteLocationRaw) => void;
   beforeEach: (guard: NavigationGuard) => void;
-  router: Router;
 }
 
 export function useStack(): Stack {
   return inject('stacked-ui')!;
-}
-
-const globalBeforeEachGuards: NavigationGuard[] = [];
-
-export function registerBeforeEachGuard(guard: NavigationGuard) {
-  globalBeforeEachGuards.push(guard);
 }
 
 /*
@@ -87,44 +79,40 @@ export function createStack(router: Router): Stack {
     return createPage({ route });
   };
 
-  const runGuards = async (to: RouteLocation, from?: RouteLocation): Promise<boolean> => {
+  const runGuards = async (to: Page , from?: RouteLocation): Promise<Page | null> => {
     const guards = beforeHooks.slice();
+    let redirectTo: Page | null = to;
+
     for (const guard of guards) {
-      const result = await Promise.resolve(guard(to, from));
-      
-      if (result === false) return false;
-      
-      if (typeof result === 'string' || (typeof result === 'object' && result !== null)) {
-        const page = pathToPage(result);
-        if (page) {
-          stack.push(page);
-          return false;
-        }
-      }
-      
+      const result = await Promise.resolve(guard(to.route, from));
+
+      if (result === false) return null;
       if (result instanceof Error) {
         throw result;
       }
-    }
-    
-    return true;
-  };
 
-  const stackPush = async (route: string | RouteLocationRaw) => {
-    const page = pathToPage(route);
-    if (page === undefined) throw new Error(`Can not resolve location ${route}`);
-    
-    const canProceed = await runGuards(page.route, getCurrentRoute(stack));
-    if (!canProceed) return false;
-    
-    stack.push(page);
-    return true;
+      if (typeof result === 'string' || (typeof result === 'object' && result !== null)) {
+        const page = pathToPage(result);
+        if (page) {
+          redirectTo = page;
+        }
+      } else {
+        throw new Error('Invalid guard return value');
+      }
+    }
+
+    return redirectTo;
   };
 
   const push = async (route: string | RouteLocationRaw) => {
-    if (await stackPush(route)) {
-      router.push(pagesToPaths(getStacks()).join('/'));
-    }
+    const page = pathToPage(route);
+    if (page === undefined) throw new Error(`Can not resolve location ${route}`);
+    
+    const redirectTo = await runGuards(page, getCurrentRoute(stack));
+    if (!redirectTo) return;
+    
+     stack.push(redirectTo);
+    await router.push(pagesToPaths(getStacks()).join('/'));
   };
 
   const pop = (allowRoot: boolean = false) => {
@@ -158,10 +146,6 @@ export function createStack(router: Router): Stack {
     beforeHooks.push(guard);
   };
 
-  globalBeforeEachGuards.forEach(guard => {
-    beforeEach(guard);
-  });
-    
   const stackInstance = { 
     getStacks, 
     push, 
@@ -169,8 +153,6 @@ export function createStack(router: Router): Stack {
     remove, 
     replace, 
     beforeEach,
-    stackPush,
-    router,
   };
   
   return stackInstance;
@@ -201,11 +183,8 @@ export function makeHandler(stack: Stack) {
       const current = pagesToPaths(stack.getStacks())
       const pushSuffix = removePrefix(splitPath(to), current);
       for (const p of pushSuffix) {
-        // Using stack.stackPush instead of stack.push to avoid triggering stack.pop in the process
-        await stack.stackPush(p);
+        await stack.push(p);
       }
-      // call router.push only once
-      stack.router.push(pagesToPaths(stack.getStacks()).join('/'));
     }
   };
   
