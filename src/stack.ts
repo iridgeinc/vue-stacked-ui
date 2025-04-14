@@ -86,6 +86,8 @@ export function createStack(router: Router): Stack {
     for (const guard of guards) {
       const result = await Promise.resolve(guard(to.route, from));
 
+      if(result === undefined) continue;
+
       if (result === false) return null;
       if (result instanceof Error) {
         throw result;
@@ -97,7 +99,7 @@ export function createStack(router: Router): Stack {
           redirectTo = page;
         }
       } else {
-        throw new Error('Invalid guard return value');
+        throw new Error(`Invalid guard return value: ${result} (${typeof result})`);
       }
     }
 
