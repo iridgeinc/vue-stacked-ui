@@ -89,9 +89,7 @@ export function createStack(router: Router): Stack {
       if(result === undefined) continue;
 
       if (result === false) return null;
-      if (result instanceof Error) {
-        throw result;
-      }
+      if (result instanceof Error) throw result;
 
       if (typeof result === 'string' || (typeof result === 'object' && result !== null)) {
         const page = pathToPage(result);
