@@ -81,10 +81,10 @@ export function createStack(router: Router): Stack {
 
   const runGuards = async (to: Page , from?: RouteLocation): Promise<Page | null> => {
     const guards = beforeHooks.slice();
-    let redirectTo: Page | null = to;
+    let redirectTo: Page = to;
 
     for (const guard of guards) {
-      const result = await Promise.resolve(guard(to.route, from));
+      const result = await guard(redirectTo.route, from);
 
       if(result === undefined) continue;
 
