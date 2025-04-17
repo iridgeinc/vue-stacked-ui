@@ -76,6 +76,57 @@ props.currentStack?.onBeforePop(() => {
 });
 ```
 
+### (Use) Register Global Navigation Guards (Recommended)
+
+This is the recommended way to register navigation guards from anywhere, even before stack initialization:
+
+```typescript
+// In your router/index.ts or similar file
+import { registerBeforeEachGuard } from "vue-stacked-ui"
+
+// Register a global guard that will be applied to the stack
+// Works even if called before the stack is initialized
+registerBeforeEachGuard((to, from) => {
+  console.log(`Global guard: Navigating to ${to.path}`);
+  
+  // Works with any authentication library
+  if (to.path.includes('admin') && !isAuthenticated()) {
+    return '/login';
+  }
+  
+  return true;
+});
+```
+
+### (Use) Navigation Guards with beforeEach
+
+If you have access to the stack instance, you can register navigation guards directly:
+
+```typescript
+import { useStack } from "vue-stacked-ui"
+const stack = useStack();
+
+// Register a navigation guard similar to vue-router's beforeEach
+// This will be called before any stack navigation (push, pop, replace)
+stack.beforeEach((to, from) => {
+  // Access the route information
+  console.log(`Navigating from ${from?.name} to ${to.name}`);
+  
+  // Cancel navigation by returning false
+  if (to.path.includes('forbidden')) {
+    return false;
+  }
+  
+  // Redirect to another route by returning a route location
+  if (to.path.includes('redirect')) {
+    return '/alternative-page';
+  }
+  
+  // Allow navigation by returning true or undefined
+  return true;
+});
+```
+
 ## Licence
 
 [MIT](https://github.com/tcnksm/tool/blob/master/LICENCE)

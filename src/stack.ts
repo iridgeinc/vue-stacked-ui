@@ -1,4 +1,4 @@
-import type { Router, RouteLocationRaw } from 'vue-router';
+import type { Router, RouteLocationRaw, RouteLocation, NavigationGuardNext } from 'vue-router';
 import { inject, shallowReadonly, reactive } from 'vue';
 import type { Reactive } from 'vue';
 import { createPage } from './page';
@@ -6,12 +6,20 @@ import type { Page } from './page';
 
 type ReadonlyStacks = Readonly<Reactive<Array<Page>>>
 
+type NavigationGuardReturn = void | Error | boolean | RouteLocationRaw
+type NavigationGuard = (
+  to: RouteLocation,
+  from: RouteLocation | undefined,
+  next?: () => void
+) => NavigationGuardReturn | Promise<NavigationGuardReturn>
+
 export interface Stack {
   getStacks: () => ReadonlyStacks;
   push: (route: string | RouteLocationRaw) => void;
   pop: (allowRoot?: boolean) => void;
   remove: (page: Page) => void;
   replace: (route: string | RouteLocationRaw) => void;
+  beforeEach: (guard: NavigationGuard) => void;
 }
 
 export function useStack(): Stack {
@@ -26,13 +34,11 @@ export const pagesToPaths = (pages: ReadonlyStacks): string[] => {
 }
 export const pagesToPath = (pages: ReadonlyStacks): string => pagesToPaths(pages).join('/')
 
-
 export const removePrefix = <T>(xs: T[], ys: T[]): T[] => {
   if (xs.length === 0 || ys.length === 0) return xs
   if (xs[0] !== ys[0]) return xs
   return removePrefix(xs.slice(1), ys.slice(1))
 }
-
 
 /*
  * Split path-string with '//' and normalize '/' prefixed.
@@ -42,10 +48,14 @@ export const splitPath = (path: string): string[] => {
   return paths.map(x => x.startsWith('/') ? x : '/' + x)
 };
 
-
+const getCurrentRoute = (stack: Reactive<Array<Page>>): RouteLocation | undefined => {
+  if (stack.length === 0) return undefined;
+  return stack[stack.length - 1].route;
+}
 
 export function createStack(router: Router): Stack {
   const stack: Reactive<Array<Page>> = reactive([]);
+  const beforeHooks: NavigationGuard[] = [];
 
   const getStacks = () => shallowReadonly(stack)
   
@@ -69,11 +79,40 @@ export function createStack(router: Router): Stack {
     return createPage({ route });
   };
 
-  const push = (route: string | RouteLocationRaw) => {
+  const runGuards = async (to: Page , from?: RouteLocation): Promise<Page | null> => {
+    const guards = beforeHooks.slice();
+    let redirectTo: Page = to;
+
+    for (const guard of guards) {
+      const result = await guard(redirectTo.route, from);
+
+      if(result === undefined) continue;
+
+      if (result === false) return null;
+      if (result instanceof Error) throw result;
+
+      if (typeof result === 'string' || (typeof result === 'object' && result !== null)) {
+        const page = pathToPage(result);
+        if (page) {
+          redirectTo = page;
+        }
+      } else {
+        throw new Error(`Invalid guard return value: ${result} (${typeof result})`);
+      }
+    }
+
+    return redirectTo;
+  };
+
+  const push = async (route: string | RouteLocationRaw) => {
     const page = pathToPage(route);
     if (page === undefined) throw new Error(`Can not resolve location ${route}`);
-    stack.push(page);
-    router.push(pagesToPaths(getStacks()).join('/'));
+    
+    const redirectTo = await runGuards(page, getCurrentRoute(stack));
+    if (!redirectTo) return;
+    
+     stack.push(redirectTo);
+    await router.push(pagesToPaths(getStacks()).join('/'));
   };
 
   const pop = (allowRoot: boolean = false) => {
@@ -103,7 +142,20 @@ export function createStack(router: Router): Stack {
     router.push(pagesToPaths(getStacks()).join('/'));
   };
 
-  return { getStacks, push, pop, remove, replace };
+  const beforeEach = (guard: NavigationGuard) => {
+    beforeHooks.push(guard);
+  };
+
+  const stackInstance = { 
+    getStacks, 
+    push, 
+    pop, 
+    remove, 
+    replace, 
+    beforeEach,
+  };
+  
+  return stackInstance;
 }
 
 export function makeHandler(stack: Stack) {
@@ -120,7 +172,7 @@ export function makeHandler(stack: Stack) {
       const current = pagesToPaths(stack.getStacks())
       const popSuffix = removePrefix(current, splitPath(to));
       for (const p of popSuffix) {
-        stack.pop(true);
+        await stack.pop(true);
         // little wati for smooth sliding animation when "bulk pop".
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
@@ -131,7 +183,7 @@ export function makeHandler(stack: Stack) {
       const current = pagesToPaths(stack.getStacks())
       const pushSuffix = removePrefix(splitPath(to), current);
       for (const p of pushSuffix) {
-        stack.push(p);
+        await stack.push(p);
       }
     }
   };
